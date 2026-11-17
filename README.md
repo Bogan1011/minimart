@@ -34,10 +34,11 @@ Expect to fix a few compile errors on first open (see "First open" below).
 
 ## Play it in a browser on the LAN
 
+The host is an Ubuntu PC set up with `Server/ubuntu/setup.sh`; see **`Docs/ServerSetup.md`**.
+
 1. **MiniMart ▸ Build Web Player** writes the build to `Builds/Web`.
-2. On the PC that will host, serve that folder, for example `npx http-server Builds/Web -p 8080` or
-   `python -m http.server 8080 --directory Builds/Web`.
-3. On each PC, open `http://<host-ip>:8080` in Chrome or Edge.
+2. Deploy it: `.\Server\ubuntu\deploy.ps1 you@<server-ip>` (Windows) or `bash Server/ubuntu/deploy.sh you@<server-ip>`.
+3. On each PC, open `http://<server-ip>/` in Chrome or Edge.
 
 Sprint 1 is single-player per browser: the Unity server build that hosts shared games arrives with the
 multiplayer proof of concept (blueprint Week 4). See `Docs/WebAndLAN.md`.

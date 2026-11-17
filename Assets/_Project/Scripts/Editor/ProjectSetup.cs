@@ -16,6 +16,7 @@ namespace MiniMart.EditorTools
     public static class ProjectSetup
     {
         public const string WebBuildFolder = "Builds/Web";
+        public const string ServerBuildPath = "Builds/Server/MiniMartServer.x86_64";
 
         [MenuItem("MiniMart/Set Up Project (layers, web, graphics)", priority = 0)]
         public static void SetUpMenu()
@@ -72,7 +73,7 @@ namespace MiniMart.EditorTools
             PlayerSettings.WebGL.decompressionFallback = true;   // our LAN server needn't send Content-Encoding headers
             PlayerSettings.WebGL.dataCaching = true;
             PlayerSettings.WebGL.exceptionSupport = WebGLExceptionSupport.ExplicitlyThrownExceptionsOnly;
-            PlayerSettings.WebGL.nameFilesAsHashes = true;
+            PlayerSettings.WebGL.nameFilesAsHashes = false;   // keep .wasm/.js/.data in names: the server's nginx config relies on them
             PlayerSettings.SetManagedStrippingLevel(web, ManagedStrippingLevel.Low);
             return new List<string>
             {
@@ -159,6 +160,28 @@ namespace MiniMart.EditorTools
             };
             var result = BuildPipeline.BuildPlayer(options);
             Debug.Log($"MiniMart web build: {result.summary.result}, {result.summary.totalSize / (1024 * 1024)} MB, {result.summary.totalTime}.");
+        }
+
+        /// <summary>
+        /// Builds the headless Linux server (needs the "Linux Dedicated Server Build Support" module) into
+        /// Builds/Server. Deploy with Server/ubuntu/deploy.sh or deploy.ps1; see Docs/ServerSetup.md.
+        /// Until networking lands (Week 4) it only boots the game without graphics.
+        /// </summary>
+        [MenuItem("MiniMart/Build Linux Server", priority = 21)]
+        public static void BuildLinuxServer()
+        {
+            var scenes = new List<string>();
+            foreach (var name in SceneNames.BuildOrder) scenes.Add(SceneBuilder.ScenePath(name));
+            var options = new BuildPlayerOptions
+            {
+                scenes = scenes.ToArray(),
+                locationPathName = ServerBuildPath,
+                target = BuildTarget.StandaloneLinux64,
+                subtarget = (int)StandaloneBuildSubtarget.Server,
+                options = BuildOptions.None,
+            };
+            var result = BuildPipeline.BuildPlayer(options);
+            Debug.Log($"MiniMart Linux server build: {result.summary.result}, {result.summary.totalSize / (1024 * 1024)} MB, {result.summary.totalTime}.");
         }
     }
 }
