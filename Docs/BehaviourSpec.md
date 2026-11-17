@@ -108,6 +108,7 @@ Fixture counts by store level (cumulative):
 | Level | Shelves | Fridges | Freezers | Produce | Tills |
 |---|---|---|---|---|---|
 | 1 Corner Shop | 8 | 2 | 0 | 2 | 2 |
+| *Unity Level 1* | *4* | *1* | *0* | *1* | *1* |
 | 2 Mini Market | 18 | 5 | 0 | 4 | 4 |
 | 3 Supermarket | 38 | 12 | 4 | 4 | 4 |
 | 4 Superstore | 56 | 19 | 4 | 8 | 6 |
@@ -339,7 +340,9 @@ versioned (plan §9); importing browser saves is not planned unless you ask for 
 
 | Area | Prototype | Unity decision (proposed) |
 |---|---|---|
-| Starter stock | none | **Open question.** None in Sprint 1; the plan expects some. Needs Akshay's call before Target A. |
+| Starter stock | none | **Decided (Akshay, 2026-11-17): none.** Players buy stock every day; everything on fixtures, in storage and on the floor carries over to the next day (perishables lose a day). |
+| Starting cash | ₹5,000 | **₹8,000** (`StartingState.Cash`). ₹5,000 bought only ~¾ of one box of each of the 12 Day 1 products (₹6,592); ₹8,000 covers all of them plus Day 1 rent (₹325). |
+| Store size at start | 8 shelves, 2 fridges, 2 produce, 2 tills | **Start small (Akshay): 4 shelves, 1 fridge, 1 produce crate, 1 till.** The building has an expansion area behind a temporary wall that later levels open; level costs and fixture counts for Levels 2-4 to be rebalanced with that. |
 | Stock action | moves the whole box in one press | **Changed (blueprint):** open the box first, then one unit per press into a slot. |
 | Empty box | disappears | **Changed (blueprint):** stays in hand until binned. |
 | Drop | in front, or at your feet if blocked | **Changed (blueprint):** only to a safe spot, otherwise refused. |

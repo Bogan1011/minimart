@@ -323,6 +323,27 @@ namespace MiniMart.Tests
         }
 
         [Test]
+        public void StockCarriesOverToTheNextDay()
+        {
+            var shelf = Shelf();
+            shelf.SetSlot(0, TestProduct.Cola, 3, null);
+            shelf.SetSlot(1, TestProduct.Bread, 4, 2);
+            var stored = OpenBox(TestProduct.Bread);
+            BoxRules.TryMove(stored, BoxLocation.Stored);
+
+            StockRules.AgeOneNight(shelf);
+            StockRules.AgeOneNight(stored);
+
+            Assert.AreEqual(7, shelf.Quantity, "nothing is cleared overnight");
+            Assert.AreEqual(3, shelf.Slot(0).Quantity);
+            Assert.IsNull(shelf.Slot(0).DaysLeft, "non-perishables never age");
+            Assert.AreEqual(1, shelf.Slot(1).DaysLeft, "perishables lose a day");
+            Assert.AreEqual(10, stored.Units);
+            Assert.AreEqual(1, stored.DaysLeft);
+            Assert.AreEqual(BoxState.Opened, stored.State);
+        }
+
+        [Test]
         public void NightsAgeStockButNotBelowZero()
         {
             var fridge = Fridge();

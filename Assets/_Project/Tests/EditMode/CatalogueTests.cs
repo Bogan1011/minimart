@@ -4,6 +4,7 @@ using System.Linq;
 using MiniMart.EditorTools;
 using MiniMart.Products;
 using MiniMart.Simulation.Catalogue;
+using MiniMart.Simulation.Economy;
 using NUnit.Framework;
 using UnityEditor;
 using UnityEngine;
@@ -81,6 +82,19 @@ namespace MiniMart.Tests
             CollectionAssert.AreEqual(new[] { 0, 50, 180, 450 }, lv.Select(l => l.served).ToArray());
             CollectionAssert.AreEqual(new[] { 0, 0, 55, 65 }, lv.Select(l => l.rep).ToArray());
             CollectionAssert.AreEqual(new[] { 300, 700, 1400, 2400 }, lv.Select(l => l.rent).ToArray());
+        }
+
+        [Test]
+        public void StartingCashCoversOneBoxOfEveryDay1ProductAndRent()
+        {
+            var c = Source();
+            var day1 = c.licences.Where(l => l.level == 1 && l.cost == 0).SelectMany(l => l.productIds).ToHashSet();
+            int firstOrder = c.products.Where(p => day1.Contains(p.id)).Sum(p => p.cost * p.unitsPerBox);
+            int rent = StartingState.RentFor(c.storeLevels[0].rent, 1);
+            Assert.AreEqual(6592, firstOrder, "one box of each Day 1 product");
+            Assert.AreEqual(325, rent);
+            Assert.GreaterOrEqual(StartingState.Cash, firstOrder + rent, "Day 1 cash must cover a first order and rent");
+            Assert.IsFalse(StartingState.StarterStock, "no free stock: everything is bought");
         }
 
         // ---- imported assets

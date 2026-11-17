@@ -57,9 +57,15 @@ multiplayer proof of concept (blueprint Week 4). See `Docs/WebAndLAN.md`.
 
 ## Sprint 1 checklist (do these in the Editor)
 
-In **03_StoreWorld**:
+In **03_StoreWorld** (the Level 1 corner shop):
 
-- [ ] You start in the storage room facing the yellow delivery pad with 11 boxes on it.
+- [ ] You start in the storage room. The delivery pad is **empty**: there's no starter stock, everything will be
+      ordered from the supplier (ordering arrives with Target A).
+- [ ] The shop floor is small: 4 shelves, 1 fridge, 1 produce crate and **one till**. A wall marked
+      `EXPANSION - Mini Market (Level 2)` closes off the space the store grows into.
+
+In **05_TestPhysics** (test boxes are on its delivery pad):
+
 - [ ] Look at a box: it brightens and the prompt says `[E] Pick up Bread Loaf box (10)`.
 - [ ] Pick it up; walking is slower and you can't sprint. Look at a shelf: `Open the box first [F]`.
 - [ ] Press `F`: the lid comes off. Look at a shelf slot: `[E] Stock Bread Loaf (0/4)`. Press E: one loaf appears.
@@ -71,9 +77,8 @@ In **03_StoreWorld**:
 - [ ] Carry a sealed box to the blue storage rack: `[E] Store Cola Can box`. It snaps into place; pick it up again.
 - [ ] `Q` drops a box in front of you; it lands, settles and keeps its count. Face a wall up close and press `Q`:
       `No room to put the box down here`, and the box stays in your hands.
-- [ ] Milk goes in the fridges, tomatoes and onions in the produce crates.
-
-In **05_TestPhysics**: the fridge starts with 6 **expired** milk across three slots. `R` on each slot clears it
+- [ ] Milk goes in the fridge, tomatoes and onions in the produce crate, ice cream in the freezer.
+- [ ] The fridge starts with 6 **expired** milk across three slots. `R` on each slot clears it
 as waste (₹52 a slot); fresh milk goes into the other slots, never onto the expired ones. Try dropping boxes
 in the corner, in the doorway, against the step and on the steep ramp (refused), and pick boxes off the stack.
 

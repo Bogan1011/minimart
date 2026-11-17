@@ -225,9 +225,10 @@ namespace MiniMart.EditorTools
             new GameObject("ProductBoxFactory").AddComponent<ProductBoxFactory>().SetPrefab(prefabs.Box);
 
         /// <summary>
-        /// 03_StoreWorld: a small corner shop, in metres. Storage room on the west (delivery pad, storage
-        /// rack, waste bin), shop floor on the east with 8 shelves, 2 fridges and 2 produce crates like the
-        /// prototype's level 1. Tills are placeholders until checkout (Target A).
+        /// 03_StoreWorld: the Level 1 corner shop, deliberately small, starting with no stock and one till.
+        /// Storage room on the west (x -12..-4: delivery pad, storage rack, waste bin), a small shop floor
+        /// (x -4..4: 4 shelves, 1 fridge, 1 produce crate, 1 till) and, behind a temporary wall, the empty
+        /// expansion area (x 4..12) that later store levels open up.
         /// </summary>
         private static void BuildStoreWorld(ProductCatalogue cat, Prefabs prefabs)
         {
@@ -241,47 +242,48 @@ namespace MiniMart.EditorTools
             const float H = 3.2f;     // wall height
             Solid("CarPark", floorsRoot, new Vector3(0, -0.06f, -14f), new Vector3(40f, 0.1f, 12f), new Color(0.3f, 0.31f, 0.33f));
             Solid("StorageFloor", floorsRoot, new Vector3(-8f, -0.1f, 0f), new Vector3(8f, 0.2f, 16f), FloorStore);
-            Solid("ShopFloor", floorsRoot, new Vector3(4f, -0.1f, 0f), new Vector3(16f, 0.2f, 16f), FloorShop);
+            Solid("ShopFloor", floorsRoot, new Vector3(0f, -0.1f, 0f), new Vector3(8f, 0.2f, 16f), FloorShop);
+            Solid("ExpansionFloor", floorsRoot, new Vector3(8f, -0.1f, 0f), new Vector3(8f, 0.2f, 16f), FloorStore);
 
-            // outer walls (x -12..12, z -8..8); front wall has the entrance at x 3..6
+            // outer walls (x -12..12, z -8..8); front wall has the entrance at x -1..2
             Solid("WallBack", walls, new Vector3(0, H / 2, 8.1f), new Vector3(24.4f, H, 0.2f), Wall);
             Solid("WallWest", walls, new Vector3(-12.1f, H / 2, 0), new Vector3(0.2f, H, 16.4f), Wall);
             Solid("WallEast", walls, new Vector3(12.1f, H / 2, 0), new Vector3(0.2f, H, 16.4f), Wall);
-            Solid("WallFrontL", walls, new Vector3(-4.5f, H / 2, -8.1f), new Vector3(15f, H, 0.2f), Wall);
-            Solid("WallFrontR", walls, new Vector3(9f, H / 2, -8.1f), new Vector3(6f, H, 0.2f), Wall);
-            Solid("Lintel", walls, new Vector3(4.5f, H - 0.3f, -8.1f), new Vector3(3f, 0.6f, 0.2f), Wall);
+            Solid("WallFrontL", walls, new Vector3(-6.6f, H / 2, -8.1f), new Vector3(11.2f, H, 0.2f), Wall);
+            Solid("WallFrontR", walls, new Vector3(7.1f, H / 2, -8.1f), new Vector3(10.2f, H, 0.2f), Wall);
+            Solid("Lintel", walls, new Vector3(0.5f, H - 0.3f, -8.1f), new Vector3(3f, 0.6f, 0.2f), Wall);
             // storage divider with a 2 m doorway (z -0.2 to 1.8)
             Solid("DividerN", walls, new Vector3(-4f, H / 2, 4.9f), new Vector3(0.2f, H, 6.2f), Wall);
             Solid("DividerS", walls, new Vector3(-4f, H / 2, -4.1f), new Vector3(0.2f, H, 7.8f), Wall);
             var sign = ProtoBuilder.Label("StorageSign", walls, new Vector3(-3.85f, 2.6f, 0.8f), "STORAGE", 0.06f, Color.black);
             sign.transform.rotation = Quaternion.Euler(0, -90, 0);
 
+            // temporary wall: removed when the store expands (Level 2+, progression arrives after Target A)
+            var expansionWall = Solid("ExpansionWall", walls, new Vector3(4f, H / 2, 0), new Vector3(0.2f, H, 16f), new Color(0.85f, 0.83f, 0.78f));
+            expansionWall.AddComponent<ExpansionZoneMarker>().Configure(2, "Mini Market");
+            var expansionSign = ProtoBuilder.Label("ExpansionSign", walls, new Vector3(3.85f, 2.2f, 0f), "EXPANSION - Mini Market (Level 2)", 0.04f, Color.black);
+            expansionSign.transform.rotation = Quaternion.Euler(0, -90, 0);
+
             // storage room: delivery pad, rack against the west wall, waste bin
-            DeliveryPadAt(world, new Vector3(-8f, 0, 4f), new Vector2(4f, 4f), new List<DeliveryPad.Delivery>
-            {
-                D(cat, "bread-loaf", 2), D(cat, "cola-can", 2), D(cat, "chips-pack", 1), D(cat, "rice-1kg", 1),
-                D(cat, "milk-packet", 2), D(cat, "egg-tray", 1), D(cat, "tomatoes", 1), D(cat, "onions", 1),
-            });
+            // No starter stock (StartingState.StarterStock): the pad starts clear and fills from supplier
+            // orders once ordering arrives (Target A). Sprint 1 test boxes live in 05_TestPhysics.
+            DeliveryPadAt(world, new Vector3(-8f, 0, 4f), new Vector2(4f, 4f), new List<DeliveryPad.Delivery>());
             Place(prefabs.StorageRack, new Vector3(-11.6f, 0, -3f), 90f, fixturesRoot);
             Bin(world, new Vector3(-10.8f, 0, -6.8f));
 
-            // shop floor: back wall chillers and produce face into the store (-Z)
-            Place(prefabs.Fixtures[FixtureKind.Fridge], new Vector3(-1.5f, 0, 7.5f), 180f, fixturesRoot);
-            Place(prefabs.Fixtures[FixtureKind.Fridge], new Vector3(0.6f, 0, 7.5f), 180f, fixturesRoot);
-            Place(prefabs.Fixtures[FixtureKind.ProduceCrate], new Vector3(5f, 0, 7.2f), 180f, fixturesRoot);
-            Place(prefabs.Fixtures[FixtureKind.ProduceCrate], new Vector3(7.2f, 0, 7.2f), 180f, fixturesRoot);
+            // Level 1 shop floor: fridge and produce on the back wall, two rows of two shelves.
+            // 12 Day 1 products fit: 7 dry lines in 24 shelf slots, 2 chilled in 9 fridge slots, 3 produce in 5 crate slots.
+            Place(prefabs.Fixtures[FixtureKind.Fridge], new Vector3(-2f, 0, 7.5f), 180f, fixturesRoot);
+            Place(prefabs.Fixtures[FixtureKind.ProduceCrate], new Vector3(1.6f, 0, 7.2f), 180f, fixturesRoot);
             foreach (float z in new[] { 3.5f, -0.5f })
-                foreach (float x in new[] { -1.5f, 0.6f, 5f, 7.2f })
+                foreach (float x in new[] { -1.9f, 2.1f })
                     Place(prefabs.Fixtures[FixtureKind.Shelf], new Vector3(x, 0, z), 180f, fixturesRoot);
 
-            // till placeholders by the door
-            foreach (var x in new[] { 0f, 8.5f })
-            {
-                Solid($"TillCounter{(x == 0f ? 1 : 2)}", world, new Vector3(x, 0.45f, -5.2f), new Vector3(2.2f, 0.9f, 0.8f),
-                    new Color(0.35f, 0.38f, 0.45f), GameLayers.Checkout);
-                var l = ProtoBuilder.Label("TillLabel", world, new Vector3(x, 1.1f, -4.78f), "Till - coming with checkout", 0.025f, Color.white);
-                l.transform.rotation = Quaternion.Euler(0, 180, 0);   // readable from inside the shop
-            }
+            // one till by the door (StartingState.Tills); more come with store levels and upgrades
+            Solid("TillCounter1", world, new Vector3(-2.4f, 0.45f, -5.2f), new Vector3(2.2f, 0.9f, 0.8f),
+                new Color(0.35f, 0.38f, 0.45f), GameLayers.Checkout);
+            var till = ProtoBuilder.Label("TillLabel", world, new Vector3(-2.4f, 1.1f, -4.78f), "Till - coming with checkout", 0.025f, Color.white);
+            till.transform.rotation = Quaternion.Euler(0, 180, 0);   // readable from inside the shop
 
             BoxFactory(prefabs);
             SpawnPlayer(prefabs, new Vector3(-8f, 0.05f, -2f));
@@ -327,7 +329,8 @@ namespace MiniMart.EditorTools
 
             DeliveryPadAt(world, new Vector3(-5f, 0, 2f), new Vector2(3f, 3f), new List<DeliveryPad.Delivery>
             {
-                D(cat, "cola-can", 1), D(cat, "milk-packet", 1), D(cat, "tomatoes", 1), D(cat, "ice-cream-tub", 1),
+                D(cat, "bread-loaf", 2), D(cat, "cola-can", 2), D(cat, "chips-pack", 1), D(cat, "milk-packet", 2),
+                D(cat, "tomatoes", 1), D(cat, "onions", 1), D(cat, "ice-cream-tub", 1),
             });
             Bin(world, new Vector3(-7.2f, 0, -7.2f));
 
