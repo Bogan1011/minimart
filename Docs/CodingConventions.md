@@ -8,7 +8,7 @@ Short on purpose. Change it when the team disagrees with it.
 |---|---|---|---|
 | `MiniMart.Simulation` | `Scripts/Simulation` | nothing (no UnityEngine) | Game rules: stock, money, goals, levels. Pure C#, deterministic, unit tested. The future host runs these authoritatively. |
 | `MiniMart.Runtime` | `Scripts/` (everything else) | Simulation, Input System | MonoBehaviours, ScriptableObjects, presentation. Calls Simulation to change state; never re-implements a rule. |
-| `MiniMart.Editor` | `Scripts/Editor` | Simulation, Runtime | Importers, scene builders, inspectors. |
+| `MiniMart.Editor` | `Scripts/Editor` | Simulation, Runtime, URP | Project setup, importers, scene builders, inspectors. |
 | `MiniMart.Tests.EditMode` / `.PlayMode` | `Tests/` | all of the above | |
 
 The test for "where does this code go": if it decides whether money, stock or progression changes,
@@ -17,7 +17,11 @@ it goes in Simulation. If it only shows or animates something, it goes in Runtim
 ## Style
 
 - C# 9 (Unity 6). One public type per file; MonoBehaviour and ScriptableObject files must be named after the class.
-- Namespaces follow folders: `MiniMart.Simulation.Inventory`, `MiniMart.Interaction`, `MiniMart.World`, ...
+- Folders follow blueprint §17.4. Namespaces follow folders: `MiniMart.Simulation.Inventory`, `MiniMart.Interaction`,
+  `MiniMart.Fixtures`, ... **Except `Scripts/Physics`, which uses `MiniMart.Handling`**: a `MiniMart.Physics`
+  namespace would hide `UnityEngine.Physics` everywhere under `MiniMart`.
+- Layers come from `GameLayers` constants, scene names from `SceneNames`. No string literals for either.
+- Code must run in the web player: no threads, no `System.IO` at runtime on the client, no `Application.Quit` on WebGL.
 - `PascalCase` types and members, `camelCase` private fields and locals, no `m_` or `_` prefixes.
 - Serialized fields are `[SerializeField] private`; expose read-only properties.
 - Money is whole rupees in `int`. Never `float` for money.

@@ -3,7 +3,9 @@
     "rootNamespace": "MiniMart.EditorTools",
     "references": [
         "MiniMart.Simulation",
-        "MiniMart.Runtime"
+        "MiniMart.Runtime",
+        "Unity.RenderPipelines.Core.Runtime",
+        "Unity.RenderPipelines.Universal.Runtime"
     ],
     "includePlatforms": [
         "Editor"

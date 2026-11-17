@@ -3,9 +3,9 @@ using UnityEngine;
 namespace MiniMart.Player
 {
     /// <summary>
-    /// First-person walk, sprint and mouse look on a CharacterController. No jump: the store has
-    /// no level design that needs it (plan §3A). Speeds are slower than the prototype's
-    /// top-down values (5.2 / 7.4 m/s) because those feel too fast in first person; tune in playtest.
+    /// First-person walk, sprint and mouse look on a CharacterController. The controller owns movement;
+    /// the camera pivot only pitches, so the two never fight (blueprint §6.1). No jump. Starting values
+    /// are the blueprint's §8.1 tuning targets: walk 4.5 m/s, sprint 6.5 m/s, eye height 1.65 m.
     /// </summary>
     [RequireComponent(typeof(CharacterController))]
     [RequireComponent(typeof(PlayerInputReader))]
@@ -15,9 +15,10 @@ namespace MiniMart.Player
         [SerializeField] private Transform cameraPivot;
 
         [Header("Movement (m/s)")]
-        [SerializeField] private float walkSpeed = 4.0f;
-        [SerializeField] private float sprintSpeed = 6.0f;
-        [SerializeField] private float carrySpeed = 3.2f;
+        [SerializeField] private float walkSpeed = 4.5f;
+        [SerializeField] private float sprintSpeed = 6.5f;
+        [Tooltip("Not in the blueprint; boxes are heavier than single products (§8.4). Tune in playtest.")]
+        [SerializeField] private float carrySpeed = 3.5f;
         [SerializeField] private float acceleration = 20f;
         [SerializeField] private float gravity = -20f;
 
@@ -56,8 +57,8 @@ namespace MiniMart.Player
 
         private void Update()
         {
-            if (input.HasFocus) Look(input.Look);
-            Move(input.HasFocus ? input.Move : Vector2.zero, input.SprintHeld, Time.deltaTime);
+            Look(input.Look);   // zero unless the game has the mouse
+            Move(input.Move, input.SprintHeld, Time.deltaTime);
         }
 
         private void Look(Vector2 delta)

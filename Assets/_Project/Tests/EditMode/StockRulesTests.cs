@@ -4,11 +4,32 @@ using NUnit.Framework;
 
 namespace MiniMart.Tests
 {
-    /// <summary>Stocking rules from the prototype (game.js probe / stockInto / pull). See Docs/BehaviourSpec.md §4.</summary>
+    /// <summary>
+    /// Stocking rules: the prototype's checks (game.js probe / stockInto / pull) on the blueprint's
+    /// slot model, one unit per press from an opened box. See Docs/BehaviourSpec.md §4.
+    /// </summary>
     public class StockRulesTests
     {
-        private static FixtureStock Shelf(int cap = 24) => new FixtureStock(FixtureKind.Shelf, cap);
-        private static FixtureStock Fridge(int cap = 18) => new FixtureStock(FixtureKind.Fridge, cap);
+        private static FixtureStock Shelf() => FixtureStock.PrototypeLayout(FixtureKind.Shelf);
+        private static FixtureStock Fridge() => FixtureStock.PrototypeLayout(FixtureKind.Fridge);
+
+        /// <summary>A supplier box picked up and opened, ready to stock from.</summary>
+        private static BoxContents OpenBox(IProduct p)
+        {
+            var box = BoxContents.FreshFromSupplier(p);
+            Assert.IsTrue(BoxRules.TryMove(box, BoxLocation.Held));
+            Assert.IsTrue(BoxRules.TryOpen(box));
+            return box;
+        }
+
+        private static int StockAll(FixtureStock f, BoxContents box, int slot = -1)
+        {
+            int n = 0;
+            while (StockRules.StockOne(f, box, slot) >= 0) n++;
+            return n;
+        }
+
+        // ------------------------------------------------------------------ kinds and layouts
 
         [Test]
         public void KindsMapToTheRightFixture()
@@ -19,303 +40,298 @@ namespace MiniMart.Tests
             Assert.AreEqual(FixtureKind.ProduceCrate, KindRules.FixtureFor(ProductKind.Produce));
         }
 
-        [Test]
-        public void PrototypeBaseCapacities()
+        [TestCase(FixtureKind.Shelf, 6, 4, 24)]
+        [TestCase(FixtureKind.Fridge, 9, 2, 18)]
+        [TestCase(FixtureKind.Freezer, 8, 2, 16)]
+        [TestCase(FixtureKind.ProduceCrate, 5, 4, 20)]
+        public void SlotLayoutsKeepThePrototypeCapacities(FixtureKind kind, int slots, int perSlot, int total)
         {
-            Assert.AreEqual(24, KindRules.PrototypeBaseCapacity(FixtureKind.Shelf));
-            Assert.AreEqual(18, KindRules.PrototypeBaseCapacity(FixtureKind.Fridge));
-            Assert.AreEqual(16, KindRules.PrototypeBaseCapacity(FixtureKind.Freezer));
-            Assert.AreEqual(20, KindRules.PrototypeBaseCapacity(FixtureKind.ProduceCrate));
+            KindRules.PrototypeSlotLayout(kind, out int s, out int u);
+            Assert.AreEqual(slots, s);
+            Assert.AreEqual(perSlot, u);
+            Assert.AreEqual(total, KindRules.PrototypeBaseCapacity(kind));
+            var f = FixtureStock.PrototypeLayout(kind);
+            Assert.AreEqual(slots, f.SlotCount);
+            Assert.AreEqual(total, f.Capacity);
         }
 
         [Test]
-        public void FreshBoxIsFullWithFullShelfLife()
+        public void DeepShelvingIsHalfAsMuchAgainPerSlot()
+        {
+            var shelf = Shelf();
+            shelf.SetCapacityMultiplier(1.5f);
+            Assert.AreEqual(6, shelf.Slot(0).Capacity);
+            Assert.AreEqual(36, shelf.Capacity);
+            var fridge = Fridge();
+            fridge.SetCapacityMultiplier(1.5f);
+            Assert.AreEqual(27, fridge.Capacity);
+        }
+
+        // ------------------------------------------------------------------ boxes
+
+        [Test]
+        public void FreshBoxIsSealedFullAndOnThePad()
         {
             var bread = BoxContents.FreshFromSupplier(TestProduct.Bread);
             Assert.AreEqual(10, bread.Units);
             Assert.AreEqual(2, bread.DaysLeft);
+            Assert.IsFalse(bread.IsOpen);
+            Assert.AreEqual(BoxState.Delivered, bread.State);
 
             var cola = BoxContents.FreshFromSupplier(TestProduct.Cola);
-            Assert.AreEqual(24, cola.Units);
             Assert.IsNull(cola.DaysLeft, "non-perishables have no expiry");
         }
 
         [Test]
-        public void EmptyShelfTakesTheBoxsProductAndLife()
+        public void BoxStatesFollowTheBlueprintLifecycle()
         {
-            var shelf = Shelf();
-            var box = BoxContents.FreshFromSupplier(TestProduct.Bread);
-
-            var check = StockRules.Check(shelf, box);
-            Assert.AreEqual(StockVerdict.CanStock, check.Verdict);
-            Assert.AreEqual("Stock Bread Loaf (0/24)", check.Prompt);
-
-            int moved = StockRules.Stock(shelf, box);
-            Assert.AreEqual(10, moved);
-            Assert.AreEqual(10, shelf.Quantity);
-            Assert.AreEqual(0, box.Units);
-            Assert.IsTrue(box.IsEmpty);
-            Assert.AreSame(TestProduct.Bread, shelf.Product);
-            Assert.AreEqual(2, shelf.DaysLeft);
-        }
-
-        [Test]
-        public void StockingStopsAtCapacityAndLeavesTheRestInTheBox()
-        {
-            var shelf = Shelf();
-            StockRules.Stock(shelf, new BoxContents(TestProduct.Cola, 20, null));
-            var box = BoxContents.FreshFromSupplier(TestProduct.Cola);   // 24 more
-
-            int moved = StockRules.Stock(shelf, box);
-            Assert.AreEqual(4, moved);
-            Assert.AreEqual(24, shelf.Quantity);
-            Assert.AreEqual(20, box.Units);
-            Assert.IsTrue(shelf.IsFull);
-        }
-
-        [Test]
-        public void FullShelfRefusesAndChangesNothing()
-        {
-            var shelf = Shelf();
-            StockRules.Stock(shelf, BoxContents.FreshFromSupplier(TestProduct.Cola));
             var box = BoxContents.FreshFromSupplier(TestProduct.Cola);
+            Assert.AreEqual(BoxState.Delivered, box.State);
+            Assert.IsFalse(BoxRules.CanMove(box, BoxLocation.Stored), "must be picked up first");
 
-            var check = StockRules.Check(shelf, box);
-            Assert.AreEqual(StockVerdict.Full, check.Verdict);
-            Assert.AreEqual("This one is full", check.Prompt);
-            Assert.AreEqual(0, StockRules.Stock(shelf, box));
-            Assert.AreEqual(24, shelf.Quantity);
-            Assert.AreEqual(24, box.Units);
+            Assert.IsTrue(BoxRules.TryMove(box, BoxLocation.Held));
+            Assert.AreEqual(BoxState.Held, box.State);
+            Assert.IsTrue(BoxRules.TryMove(box, BoxLocation.OnGround));
+            Assert.AreEqual(BoxState.OnGround, box.State);
+            Assert.IsFalse(BoxRules.TryOpen(box), "only a held box can be opened");
+            Assert.IsTrue(BoxRules.TryMove(box, BoxLocation.Held));
+            Assert.IsTrue(BoxRules.TryMove(box, BoxLocation.Stored));
+            Assert.AreEqual(BoxState.Stored, box.State);
+            Assert.IsTrue(BoxRules.TryMove(box, BoxLocation.Held));
+            Assert.IsFalse(BoxRules.CanMove(box, BoxLocation.Delivered), "boxes never go back to the pad");
+
+            Assert.IsTrue(BoxRules.TryOpen(box));
+            Assert.AreEqual(BoxState.Opened, box.State);
+            Assert.IsFalse(BoxRules.TryOpen(box), "already open");
+
+            var shelf = Shelf();
+            StockAll(shelf, box);
+            Assert.AreEqual(BoxState.Empty, box.State);
+            Assert.AreEqual(0, BoxRules.Discard(box));
+            Assert.AreEqual(BoxState.Discarded, box.State);
+            Assert.IsFalse(BoxRules.CanMove(box, BoxLocation.Held), "a binned box is gone");
         }
 
         [Test]
-        public void WrongFixtureIsRefusedWithTheRightHint()
+        public void BinningABoxWithStockCountsItAsWaste()
+        {
+            var box = OpenBox(TestProduct.Milk);
+            Assert.AreEqual(16 * 26, BoxRules.Discard(box));
+            Assert.AreEqual(0, box.Units);
+        }
+
+        [Test]
+        public void OnlyAHeldBoxCanBeBinned()
+        {
+            var box = BoxContents.FreshFromSupplier(TestProduct.Milk);
+            Assert.AreEqual(0, BoxRules.Discard(box));
+            Assert.AreEqual(BoxState.Delivered, box.State);
+        }
+
+        // ------------------------------------------------------------------ checks
+
+        [Test]
+        public void ChecksComeInTheRightOrder()
         {
             var shelf = Shelf();
-            var milk = BoxContents.FreshFromSupplier(TestProduct.Milk);
-            var check = StockRules.Check(shelf, milk);
+            Assert.AreEqual(StockVerdict.NoBox, StockRules.Check(shelf, null).Verdict);
+
+            var sealedBox = BoxContents.FreshFromSupplier(TestProduct.Cola);
+            BoxRules.TryMove(sealedBox, BoxLocation.Held);
+            var check = StockRules.Check(shelf, sealedBox);
+            Assert.AreEqual(StockVerdict.BoxClosed, check.Verdict);
+            Assert.AreEqual("Open the box first", check.Prompt);
+
+            var milk = OpenBox(TestProduct.Milk);
+            check = StockRules.Check(shelf, milk);
             Assert.AreEqual(StockVerdict.WrongFixture, check.Verdict);
             Assert.AreEqual("Milk Packet goes in a fridge", check.Prompt);
-            Assert.AreEqual(0, StockRules.Stock(shelf, milk));
-            Assert.AreEqual(16, milk.Units);
 
-            Assert.AreEqual("Ice Cream Tub goes in a freezer", StockRules.Check(Fridge(), BoxContents.FreshFromSupplier(TestProduct.IceCream)).Prompt);
-            Assert.AreEqual("Tomatoes goes in a produce crate", StockRules.Check(shelf, BoxContents.FreshFromSupplier(TestProduct.Tomatoes)).Prompt);
+            var locked = FixtureStock.PrototypeLayout(FixtureKind.Fridge, unlocked: false);
+            Assert.AreEqual(StockVerdict.Locked, StockRules.Check(locked, milk).Verdict);
         }
 
         [Test]
-        public void ShelfHoldingAnotherProductMustBeEmptiedFirst()
+        public void EmptyShelfShowsTheFirstSlot()
+        {
+            var check = StockRules.Check(Shelf(), OpenBox(TestProduct.Bread));
+            Assert.AreEqual(StockVerdict.CanStock, check.Verdict);
+            Assert.AreEqual(0, check.SlotIndex);
+            Assert.AreEqual("Stock Bread Loaf (0/4)", check.Prompt);
+        }
+
+        // ------------------------------------------------------------------ stocking
+
+        [Test]
+        public void StockingMovesOneUnitPerPress()
         {
             var shelf = Shelf();
-            StockRules.Stock(shelf, new BoxContents(TestProduct.Cola, 5, null));
-            var chips = BoxContents.FreshFromSupplier(TestProduct.Chips);
+            var box = OpenBox(TestProduct.Bread);
+            Assert.AreEqual(0, StockRules.StockOne(shelf, box));
+            Assert.AreEqual(9, box.Units);
+            Assert.AreEqual(1, shelf.Slot(0).Quantity);
+            Assert.AreSame(TestProduct.Bread, shelf.Slot(0).Product);
+            Assert.AreEqual(2, shelf.Slot(0).DaysLeft);
+        }
 
-            var check = StockRules.Check(shelf, chips);
+        [Test]
+        public void AutoChooseTopsUpTheSameProductThenTheNextEmptySlot()
+        {
+            var shelf = Shelf();
+            var box = OpenBox(TestProduct.Cola);
+            for (int i = 0; i < 4; i++) Assert.AreEqual(0, StockRules.StockOne(shelf, box));
+            Assert.AreEqual(1, StockRules.StockOne(shelf, box), "slot 0 full, so the next empty slot");
+
+            var chips = OpenBox(TestProduct.Chips);
+            Assert.AreEqual(2, StockRules.StockOne(shelf, chips), "a different product takes a fresh slot");
+            Assert.AreEqual(1, StockRules.StockOne(shelf, box), "cola tops up its partial slot first");
+        }
+
+        [Test]
+        public void AimingAtASlotRespectsWhatsThere()
+        {
+            var shelf = Shelf();
+            var cola = OpenBox(TestProduct.Cola);
+            StockRules.StockOne(shelf, cola, 3);
+            var chips = OpenBox(TestProduct.Chips);
+
+            var check = StockRules.Check(shelf, chips, 3);
             Assert.AreEqual(StockVerdict.HoldsOtherProduct, check.Verdict);
-            Assert.AreEqual(0, StockRules.Stock(shelf, chips));
-            Assert.AreSame(TestProduct.Cola, shelf.Product);
+            Assert.AreEqual("This slot holds Cola Can", check.Prompt);
+            Assert.AreEqual(-1, StockRules.StockOne(shelf, chips, 3));
+
+            for (int i = 0; i < 3; i++) StockRules.StockOne(shelf, cola, 3);
+            check = StockRules.Check(shelf, cola, 3);
+            Assert.AreEqual(StockVerdict.Full, check.Verdict);
+            Assert.AreEqual("This slot is full", check.Prompt);
         }
 
         [Test]
-        public void LockedFixtureRefusesEvenTheRightProduct()
-        {
-            var shelf = new FixtureStock(FixtureKind.Shelf, 24, unlocked: false);
-            var box = BoxContents.FreshFromSupplier(TestProduct.Cola);
-            Assert.AreEqual(StockVerdict.Locked, StockRules.Check(shelf, box).Verdict);
-            Assert.AreEqual(0, StockRules.Stock(shelf, box));
-        }
-
-        [Test]
-        public void LockedIsCheckedBeforeWrongFixture()
-        {
-            var shelf = new FixtureStock(FixtureKind.Shelf, 24, unlocked: false);
-            Assert.AreEqual(StockVerdict.Locked, StockRules.Check(shelf, BoxContents.FreshFromSupplier(TestProduct.Milk)).Verdict);
-        }
-
-        [Test]
-        public void ExpiredBoxCannotBeStocked()
-        {
-            var fridge = Fridge();
-            var old = new BoxContents(TestProduct.Milk, 16, 0);
-            Assert.IsTrue(old.IsExpired);
-            Assert.AreEqual(StockVerdict.BoxExpired, StockRules.Check(fridge, old).Verdict);
-            Assert.AreEqual(0, StockRules.Stock(fridge, old));
-        }
-
-        [Test]
-        public void ExpiredStockOnTheFixtureBlocksRestocking()
-        {
-            var fridge = Fridge();
-            fridge.SetContents(TestProduct.Milk, 4, 0);
-            var fresh = BoxContents.FreshFromSupplier(TestProduct.Milk);
-            Assert.AreEqual(StockVerdict.FixtureExpired, StockRules.Check(fridge, fresh).Verdict);
-            Assert.AreEqual(0, StockRules.Stock(fridge, fresh));
-        }
-
-        [Test]
-        public void MixingStockKeepsTheOldestExpiry()
-        {
-            var fridge = Fridge();
-            StockRules.Stock(fridge, new BoxContents(TestProduct.Milk, 5, 1));
-            StockRules.Stock(fridge, new BoxContents(TestProduct.Milk, 5, 3));
-            Assert.AreEqual(10, fridge.Quantity);
-            Assert.AreEqual(1, fridge.DaysLeft);
-        }
-
-        [Test]
-        public void EmptyingGoodStockGivesOneBoxWithEverything()
-        {
-            var fridge = Fridge();
-            StockRules.Stock(fridge, new BoxContents(TestProduct.Milk, 7, 2));
-
-            var outcome = StockRules.Empty(fridge);
-            Assert.AreEqual(EmptyOutcomeKind.Boxed, outcome.Kind);
-            Assert.AreSame(TestProduct.Milk, outcome.Box.Product);
-            Assert.AreEqual(7, outcome.Box.Units);
-            Assert.AreEqual(2, outcome.Box.DaysLeft);
-            Assert.IsTrue(fridge.IsEmpty);
-            Assert.IsNull(fridge.Product);
-        }
-
-        [Test]
-        public void EmptyingExpiredStockWritesItOffAsWaste()
-        {
-            var fridge = Fridge();
-            fridge.SetContents(TestProduct.Milk, 6, 0);
-
-            var outcome = StockRules.Empty(fridge);
-            Assert.AreEqual(EmptyOutcomeKind.Wasted, outcome.Kind);
-            Assert.IsNull(outcome.Box);
-            Assert.AreEqual(6, outcome.WastedUnits);
-            Assert.AreEqual(6 * 26, outcome.WasteValue);
-            Assert.IsTrue(fridge.IsEmpty);
-        }
-
-        [Test]
-        public void EmptyingAnEmptyFixtureDoesNothing()
-        {
-            Assert.AreEqual(EmptyOutcomeKind.Nothing, StockRules.Empty(Shelf()).Kind);
-        }
-
-        [Test]
-        public void AfterEmptyingAnyProductCanGoOn()
+        public void FullFixtureStopsAndUnitsAreConserved()
         {
             var shelf = Shelf();
-            StockRules.Stock(shelf, new BoxContents(TestProduct.Cola, 5, null));
-            StockRules.Empty(shelf);
-            Assert.AreEqual(24, StockRules.Stock(shelf, BoxContents.FreshFromSupplier(TestProduct.Chips)));
-            Assert.AreSame(TestProduct.Chips, shelf.Product);
-        }
-
-        [Test]
-        public void SoldOutShelfAcceptsANewProduct()
-        {
-            var shelf = Shelf();
-            StockRules.Stock(shelf, new BoxContents(TestProduct.Cola, 3, null));
-            Assert.AreEqual(3, StockRules.TakeForBasket(shelf, 5));
-            Assert.IsTrue(shelf.IsEmpty);
-            Assert.AreEqual(StockVerdict.CanStock, StockRules.Check(shelf, BoxContents.FreshFromSupplier(TestProduct.Chips)).Verdict);
-        }
-
-        [Test]
-        public void ShoppersNeverTakeExpiredStock()
-        {
-            var fridge = Fridge();
-            fridge.SetContents(TestProduct.Milk, 6, 0);
-            Assert.AreEqual(0, StockRules.TakeForBasket(fridge, 2));
-            Assert.AreEqual(6, fridge.Quantity);
-        }
-
-        [Test]
-        public void AgeingCountsDownAndStopsAtZero()
-        {
-            var fridge = Fridge();
-            StockRules.Stock(fridge, new BoxContents(TestProduct.Milk, 4, 1));
-            StockRules.AgeOneNight(fridge);
-            Assert.AreEqual(0, fridge.DaysLeft);
-            Assert.IsTrue(fridge.IsExpired);
-            StockRules.AgeOneNight(fridge);
-            Assert.AreEqual(0, fridge.DaysLeft);
-
-            var cola = BoxContents.FreshFromSupplier(TestProduct.Cola);
-            StockRules.AgeOneNight(cola);
-            Assert.IsNull(cola.DaysLeft);
-            Assert.IsFalse(cola.IsExpired);
-        }
-
-        [Test]
-        public void NonPerishablesIgnoreAnyDaysLeftPassedIn()
-        {
-            var box = new BoxContents(TestProduct.Cola, 5, 0);
-            Assert.IsNull(box.DaysLeft);
-            Assert.IsFalse(box.IsExpired);
-        }
-
-        [Test]
-        public void DeepShelvingRaisesCapacityWithoutLosingStock()
-        {
-            var shelf = Shelf();
-            StockRules.Stock(shelf, BoxContents.FreshFromSupplier(TestProduct.Cola));
-            shelf.SetCapacity(36);
+            var a = OpenBox(TestProduct.Cola);
+            var b = OpenBox(TestProduct.Cola);
+            int moved = StockAll(shelf, a) + StockAll(shelf, b);
+            Assert.AreEqual(24, moved);
             Assert.AreEqual(24, shelf.Quantity);
-            Assert.AreEqual(12, shelf.FreeSpace);
-            Assert.AreEqual(StockVerdict.CanStock, StockRules.Check(shelf, BoxContents.FreshFromSupplier(TestProduct.Cola)).Verdict);
+            Assert.AreEqual(48 - 24, a.Units + b.Units, "nothing created or lost");
+            Assert.AreEqual(StockVerdict.Full, StockRules.Check(shelf, b).Verdict);
         }
 
         [Test]
-        public void SetContentsRejectsTheWrongKind()
+        public void MixedFreshnessTakesTheOldest()
         {
-            Assert.Throws<System.ArgumentException>(() => Shelf().SetContents(TestProduct.Milk, 3, 3));
+            var fridge = Fridge();
+            var old = OpenBox(TestProduct.Milk);
+            StockRules.AgeOneNight(old);
+            StockRules.AgeOneNight(old);           // 1 day left
+            StockRules.StockOne(fridge, old, 0);
+            var fresh = OpenBox(TestProduct.Milk); // 3 days left
+            StockRules.StockOne(fridge, fresh, 0);
+            Assert.AreEqual(1, fridge.Slot(0).DaysLeft);
         }
 
-        /// <summary>
-        /// Random sequences of stock / empty / take. Units must only ever be moved, never created or
-        /// destroyed, except by the explicit waste and sale paths, which are counted.
-        /// </summary>
         [Test]
-        public void UnitsAreConservedAcrossRandomOperations([Values(1, 2, 3, 4, 5)] int seed)
+        public void ExpiredStockBlocksItsSlotAndExpiredBoxesCantBeStocked()
         {
-            var rng = new System.Random(seed);
-            var fixtures = new[] { Shelf(), Shelf(), Fridge() };
-            var boxes = new System.Collections.Generic.List<BoxContents>();
-            var products = new IProduct[] { TestProduct.Cola, TestProduct.Bread, TestProduct.Chips, TestProduct.Milk };
-            int created = 0, sold = 0, wasted = 0;
+            var fridge = Fridge();
+            fridge.SetSlot(0, TestProduct.Milk, 2, 0);
+            var box = OpenBox(TestProduct.Milk);
+            Assert.AreEqual(StockVerdict.SlotExpired, StockRules.Check(fridge, box, 0).Verdict);
+            Assert.AreEqual(1, StockRules.StockOne(fridge, box), "auto-choose skips the expired slot");
 
-            for (int step = 0; step < 500; step++)
-            {
-                switch (rng.Next(4))
-                {
-                    case 0:
-                        var fresh = BoxContents.FreshFromSupplier(products[rng.Next(products.Length)]);
-                        created += fresh.Units;
-                        boxes.Add(fresh);
-                        break;
-                    case 1:
-                        if (boxes.Count > 0) StockRules.Stock(fixtures[rng.Next(fixtures.Length)], boxes[rng.Next(boxes.Count)]);
-                        break;
-                    case 2:
-                        var outcome = StockRules.Empty(fixtures[rng.Next(fixtures.Length)]);
-                        if (outcome.Box != null) boxes.Add(outcome.Box);
-                        wasted += outcome.WastedUnits;
-                        break;
-                    case 3:
-                        sold += StockRules.TakeForBasket(fixtures[rng.Next(fixtures.Length)], rng.Next(1, 4));
-                        break;
-                }
-                if (rng.Next(25) == 0) foreach (var f in fixtures) StockRules.AgeOneNight(f);
-                boxes.RemoveAll(b => b.IsEmpty);
+            var expired = OpenBox(TestProduct.Milk);
+            StockRules.AgeOneNight(expired); StockRules.AgeOneNight(expired); StockRules.AgeOneNight(expired);
+            Assert.AreEqual(StockVerdict.BoxExpired, StockRules.Check(fridge, expired).Verdict);
+        }
 
-                int onFixtures = 0;
-                foreach (var f in fixtures)
-                {
-                    Assert.LessOrEqual(f.Quantity, f.Capacity, "over capacity");
-                    if (!f.IsEmpty) Assert.AreEqual(f.Kind, f.Product.RequiredFixture(), "product on the wrong fixture");
-                    onFixtures += f.IsEmpty ? 0 : f.Quantity;
-                }
-                int inBoxes = 0;
-                foreach (var b in boxes) inBoxes += b.Units;
-                Assert.AreEqual(created, onFixtures + inBoxes + sold + wasted, $"units not conserved at step {step}");
-            }
+        // ------------------------------------------------------------------ taking back and emptying
+
+        [Test]
+        public void TakeBackMovesOneUnitIntoTheOpenBox()
+        {
+            var shelf = Shelf();
+            var box = OpenBox(TestProduct.Cola);
+            StockRules.StockOne(shelf, box, 0);
+            StockRules.StockOne(shelf, box, 0);
+            Assert.IsTrue(StockRules.TakeBackOne(shelf, 0, box));
+            Assert.AreEqual(23, box.Units);
+            Assert.AreEqual(1, shelf.Slot(0).Quantity);
+            Assert.IsTrue(StockRules.TakeBackOne(shelf, 0, box));
+            Assert.IsTrue(shelf.Slot(0).IsEmpty);
+            Assert.IsFalse(StockRules.TakeBackOne(shelf, 0, box), "nothing left");
+            Assert.IsFalse(StockRules.CanTakeBack(shelf, 0, box));
+        }
+
+        [Test]
+        public void CantTakeBackIntoAFullOrDifferentBox()
+        {
+            var shelf = Shelf();
+            shelf.SetSlot(0, TestProduct.Cola, 4, null);
+            var full = OpenBox(TestProduct.Cola);
+            Assert.IsFalse(StockRules.CanTakeBack(shelf, 0, full));
+            var chips = OpenBox(TestProduct.Chips);
+            StockRules.StockOne(shelf, chips, 1);
+            Assert.IsFalse(StockRules.CanTakeBack(shelf, 0, chips));
+        }
+
+        [Test]
+        public void EmptyingGoodStockGivesAnOpenHeldBox()
+        {
+            var shelf = Shelf();
+            shelf.SetSlot(2, TestProduct.Bread, 3, 1);
+            var outcome = StockRules.EmptySlot(shelf, 2);
+            Assert.AreEqual(EmptyOutcomeKind.Boxed, outcome.Kind);
+            Assert.AreEqual(3, outcome.Box.Units);
+            Assert.AreEqual(1, outcome.Box.DaysLeft);
+            Assert.IsTrue(outcome.Box.IsOpen);
+            Assert.AreEqual(BoxLocation.Held, outcome.Box.Location);
+            Assert.IsTrue(shelf.Slot(2).IsEmpty);
+        }
+
+        [Test]
+        public void EmptyingExpiredStockIsWaste()
+        {
+            var fridge = Fridge();
+            fridge.SetSlot(0, TestProduct.Milk, 2, 0);
+            var outcome = StockRules.EmptySlot(fridge, 0);
+            Assert.AreEqual(EmptyOutcomeKind.Wasted, outcome.Kind);
+            Assert.AreEqual(2, outcome.WastedUnits);
+            Assert.AreEqual(52, outcome.WasteValue);
+            Assert.IsNull(outcome.Box);
+            Assert.AreEqual(EmptyOutcomeKind.Nothing, StockRules.EmptySlot(fridge, 0).Kind);
+        }
+
+        // ------------------------------------------------------------------ shoppers and nights
+
+        [Test]
+        public void ShoppersTakeAcrossSlotsButNeverExpiredStock()
+        {
+            var fridge = Fridge();
+            fridge.SetSlot(0, TestProduct.Milk, 2, 0);
+            fridge.SetSlot(1, TestProduct.Milk, 2, 2);
+            fridge.SetSlot(2, TestProduct.Milk, 1, 2);
+            Assert.AreEqual(3, StockRules.TakeForBasket(fridge, TestProduct.Milk, 5));
+            Assert.AreEqual(2, fridge.Quantity, "only the expired units remain");
+        }
+
+        [Test]
+        public void SetSlotRefusesTheWrongKind()
+        {
+            Assert.Throws<System.ArgumentException>(() => Shelf().SetSlot(0, TestProduct.Milk, 1, 3));
+        }
+
+        [Test]
+        public void NightsAgeStockButNotBelowZero()
+        {
+            var fridge = Fridge();
+            fridge.SetSlot(0, TestProduct.Milk, 1, 1);
+            fridge.SetSlot(1, TestProduct.Milk, 1, 0);
+            StockRules.AgeOneNight(fridge);
+            Assert.AreEqual(0, fridge.Slot(0).DaysLeft);
+            Assert.AreEqual(0, fridge.Slot(1).DaysLeft);
+            Assert.IsTrue(fridge.Slot(0).IsExpired);
         }
     }
 }

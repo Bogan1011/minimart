@@ -1,8 +1,8 @@
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using MiniMart.Data;
 using MiniMart.EditorTools;
+using MiniMart.Products;
 using MiniMart.Simulation.Catalogue;
 using NUnit.Framework;
 using UnityEditor;
@@ -128,6 +128,54 @@ namespace MiniMart.Tests
                 Assert.AreEqual(row.shelfLifeDays, p.ShelfLifeDays, row.key);
                 Assert.AreEqual(PrototypeCatalogue.ParseKind(row.kind), p.Kind, row.key);
             }
+        }
+
+        [Test]
+        public void ImportedFixturesHaveSlotLayouts()
+        {
+            var cat = Imported();
+            foreach (FixtureKind kind in System.Enum.GetValues(typeof(FixtureKind)))
+            {
+                var f = cat.FindFixture(kind);
+                KindRules.PrototypeSlotLayout(kind, out int slots, out int perSlot);
+                Assert.AreEqual(slots, f.SlotCount, kind.ToString());
+                Assert.AreEqual(perSlot, f.UnitsPerSlot, kind.ToString());
+            }
+        }
+
+        [Test]
+        public void ImportedCategoriesCoverEveryProductOnce()
+        {
+            var cat = Imported();
+            Assert.AreEqual(7, cat.Categories.Count);
+            var seen = new HashSet<ProductDefinition>();
+            foreach (var c in cat.Categories)
+                foreach (var p in c.products)
+                {
+                    Assert.IsTrue(seen.Add(p), $"{p.DisplayName} is in two categories");
+                    Assert.AreEqual(c.key, p.CategoryKey, p.DisplayName);
+                }
+            Assert.AreEqual(cat.Products.Count, seen.Count);
+        }
+
+        [Test]
+        public void ImportedProductsHaveUniqueValidBarcodes()
+        {
+            var cat = Imported();
+            var codes = new HashSet<string>();
+            foreach (var p in cat.Products)
+            {
+                Assert.AreEqual(13, p.Barcode.Length, p.DisplayName);
+                Assert.IsTrue(codes.Add(p.Barcode), $"duplicate barcode {p.Barcode}");
+                Assert.AreEqual(p.Barcode, CatalogueImporter.Barcode(p.PrototypeIndex));
+            }
+        }
+
+        [TestCase(0, "8900000000005")]
+        [TestCase(12, "8900000000128")]
+        public void PlaceholderBarcodesHaveAValidCheckDigit(int index, string expected)
+        {
+            Assert.AreEqual(expected, CatalogueImporter.Barcode(index));
         }
 
         [Test]

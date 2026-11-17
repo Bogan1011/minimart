@@ -45,6 +45,22 @@ namespace MiniMart.Simulation.Catalogue
             }
         }
 
+        /// <summary>
+        /// Slot layout that keeps the prototype's capacity (BASE_CAP in game.js) and divides cleanly by
+        /// Deep shelving's × 1.5: shelf 6 × 4 = 24, fridge 9 × 2 = 18, freezer 8 × 2 = 16, produce 5 × 4 = 20.
+        /// </summary>
+        public static void PrototypeSlotLayout(FixtureKind kind, out int slots, out int unitsPerSlot)
+        {
+            switch (kind)
+            {
+                case FixtureKind.Shelf: slots = 6; unitsPerSlot = 4; break;
+                case FixtureKind.Fridge: slots = 9; unitsPerSlot = 2; break;
+                case FixtureKind.Freezer: slots = 8; unitsPerSlot = 2; break;
+                case FixtureKind.ProduceCrate: slots = 5; unitsPerSlot = 4; break;
+                default: slots = 1; unitsPerSlot = 1; break;
+            }
+        }
+
         /// <summary>Prototype base capacity in units (BASE_CAP in game.js).</summary>
         public static int PrototypeBaseCapacity(FixtureKind kind)
         {

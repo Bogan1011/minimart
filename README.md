@@ -1,112 +1,134 @@
 # MiniMart Mayhem (Unity)
 
-First-person co-op supermarket game, rebuilt in **Unity 6 + C#** from the browser prototype.
-This folder is **Phase 0 + Sprint 1** of `MiniMart_Mayhem_Unity_CSharp_MVP_Plan.md`:
+First-person co-op supermarket game, rebuilt in **Unity 6.3 LTS + C#** (URP, Input System) from the browser
+prototype in `prototype/`. It ships as a **web build played over LAN**: one PC runs the game server and serves
+the page, and everyone, host included, plays in Chrome or Edge.
 
-- `Docs/BehaviourSpec.md`: every number and rule from the prototype (products, prices, fixture capacities,
-  licences, store levels, upgrades, day cycle, customers, checkout, goals), plus the preserve/change decisions
-  and a prototype → Unity system map.
-- A Unity project skeleton with the Sprint 1 loop: walk around a small shop, pick up a delivery box, carry it to
-  the right fixture, stock it, watch the count change, drop it or empty a fixture back into a box, without
-  duplicating or losing stock.
+Governing spec: `Docs/MiniMart_Blueprint.md`. Where the blueprint assumes Steam or a Windows installer,
+`Docs/WebAndLAN.md` overrides it. Prototype rules and numbers: `Docs/BehaviourSpec.md`.
 
-Nothing here has been opened in Unity yet: it was written without an Editor. Expect to fix a few
-compile errors on first open (see "First open" below).
+This is **Phase 0 + Sprint 1**: walk around a small shop, pick up a delivery box, open it, stock products one
+at a time into shelf slots, take stock back, store boxes on a rack, bin empties, and put boxes down safely,
+without ever duplicating or losing stock.
 
-## Set up (about 10 minutes)
+Nothing here has been opened in Unity yet: it was written and syntax-checked without an Editor or C# compiler.
+Expect to fix a few compile errors on first open (see "First open" below).
 
-1. **Unity Hub ▸ New project ▸ Unity 6 LTS ▸ "Universal 3D" template.** Call it `MiniMartMayhem`.
-   (The template configures URP, the Input System and the Test Framework, which this project needs.)
-2. Close the Editor. Copy these into the new project folder, merging with what's there:
-   `Assets/_Project`, `Assets/ThirdParty`, `Docs`, `README.md`, `.gitignore`, `.gitattributes`.
-3. Reopen the project. If Unity asks to enable the new Input System backends, say **Yes** (it restarts).
-   *Edit ▸ Project Settings ▸ Player ▸ Active Input Handling* must be **Input System Package (New)** or **Both**.
-4. **MiniMart ▸ Import Prototype Catalogue.** Creates 36 products, 4 fixture types, 7 licences, 4 store levels
-   and 9 upgrades as ScriptableObjects under `Assets/_Project/ScriptableObjects`.
-5. **MiniMart ▸ Build Sprint 1 Scenes.** Creates the prefabs and the `Bootstrap`, `MainMenu`, `Supermarket`
-   and `TestMaps/TestMap` scenes and adds them to Build Settings (Bootstrap first).
-6. Press **Play** in `Supermarket` (opens automatically).
+## Set up (about 15 minutes)
 
-Git: `git init`, `git lfs install`, then commit. `.gitignore` and `.gitattributes` are ready.
+1. **Unity Hub ▸ Installs**: Unity **6.3 LTS** with the **Web Build Support** module.
+2. **New project ▸ Universal 3D** template, named `MiniMartMayhem`. (It sets up URP, the Input System and the
+   Test Framework.)
+3. Close the Editor. Copy `Assets/_Project`, `Docs`, `README.md`, `.gitignore` and `.gitattributes` into the
+   project folder, merging with what's there.
+4. Reopen. If Unity asks to enable the new Input System backends, say **Yes**.
+   *Project Settings ▸ Player ▸ Active Input Handling* must be **Input System Package (New)** or **Both**.
+5. **File ▸ Build Profiles ▸ Web ▸ Switch Platform.**
+6. **MiniMart ▸ Set Up Project (layers, web, graphics).** Adds the blueprint's collision layers, applies the web
+   player settings (WebGL 2, gzip, run in background) and trims the URP asset for Intel Iris Xe.
+7. **MiniMart ▸ Import Prototype Catalogue.** Creates 36 products, 7 categories, 4 fixture types, 4 store levels
+   and 9 upgrades under `Assets/_Project/ScriptableObjects`.
+8. **MiniMart ▸ Build Scenes.** Creates the prefabs and scenes `00_Bootstrap` … `06_TestNPC` and adds them to
+   Build Settings in order.
+9. Press **Play** in `03_StoreWorld` (opens automatically).
+
+## Play it in a browser on the LAN
+
+1. **MiniMart ▸ Build Web Player** writes the build to `Builds/Web`.
+2. On the PC that will host, serve that folder, for example `npx http-server Builds/Web -p 8080` or
+   `python -m http.server 8080 --directory Builds/Web`.
+3. On each PC, open `http://<host-ip>:8080` in Chrome or Edge.
+
+Sprint 1 is single-player per browser: the Unity server build that hosts shared games arrives with the
+multiplayer proof of concept (blueprint Week 4). See `Docs/WebAndLAN.md`.
 
 ## Controls
 
 | Key | Action |
 |---|---|
-| Click | capture the mouse |
-| `W` `A` `S` `D` · `Shift` | walk · sprint (not while carrying) |
+| Click | capture the mouse (browsers need a click before pointer lock) |
+| `W` `A` `S` `D` · `Shift` | walk 4.5 m/s · sprint 6.5 m/s (not while carrying) |
 | Mouse | look |
-| `E` / left-click | pick up a box · stock the fixture you're looking at · throw a box in the waste bin |
-| `Q` / right-click | drop the box |
-| `R` | empty a fixture into a box (expired stock goes straight to waste) |
+| `E` / left-click | pick up a box · stock one unit (hold to repeat) · store on a rack · bin a box |
+| `F` | open the box you're carrying |
+| `R` | carrying: take one unit back into your box · empty-handed: empty the slot you're looking at into a box (expired stock goes to waste) |
+| `Q` / right-click | put the box down (only where there's room) |
 | `Esc` | free the mouse |
 
-## Sprint 1 demo checklist (do these in the Editor)
+## Sprint 1 checklist (do these in the Editor)
 
-In **Supermarket**:
+In **03_StoreWorld**:
 
 - [ ] You start in the storage room facing the yellow delivery pad with 11 boxes on it.
 - [ ] Look at a box: it brightens and the prompt says `[E] Pick up Bread Loaf box (10)`.
-- [ ] Pick it up; walk through the doorway onto the shop floor; walking is slower and you can't sprint.
-- [ ] Look at a fridge: `Bread Loaf goes in a shelf` (red, can't do it).
-- [ ] Look at a shelf: `[E] Stock Bread Loaf (0/24)`. Press E: the box disappears and 10 blocks appear; the ticket says `10/24`.
-- [ ] Stock a cola box (24) onto the same shelf: refused (`Holds Bread Loaf - empty it first`).
-- [ ] Put cola on an empty shelf, then a second cola box: 24/24 and the second box stays in your hands with 24.
-- [ ] `R` on the bread shelf: you're holding a 10-unit bread box again; the shelf is empty.
-- [ ] `Q` drops a box in front of you; it lands on the floor and keeps its count. Drop facing a wall: it lands at your feet.
+- [ ] Pick it up; walking is slower and you can't sprint. Look at a shelf: `Open the box first [F]`.
+- [ ] Press `F`: the lid comes off. Look at a shelf slot: `[E] Stock Bread Loaf (0/4)`. Press E: one loaf appears.
+      Hold E: loaves keep going in until the slot is full, then the next press needs another slot.
+- [ ] Look at a fridge: `Bread Loaf goes in a shelf` (can't do it).
+- [ ] Aim at a slot holding bread with an open cola box: `This slot holds Bread Loaf`.
+- [ ] Empty the bread box: it stays in your hands as an empty box. Throw it in the green waste bin.
+- [ ] Empty-handed, `R` on a stocked slot: you're holding an open box with that stock; the slot is empty.
+- [ ] Carry a sealed box to the blue storage rack: `[E] Store Cola Can box`. It snaps into place; pick it up again.
+- [ ] `Q` drops a box in front of you; it lands, settles and keeps its count. Face a wall up close and press `Q`:
+      `No room to put the box down here`, and the box stays in your hands.
 - [ ] Milk goes in the fridges, tomatoes and onions in the produce crates.
-- [ ] Throw a box in the green waste bin: a toast shows the waste in ₹.
 
-In **TestMap**: the fridge starts with 6 **expired** milk. `R` clears it as waste (₹156); stocking fresh milk
-into it first is refused (`Expired Milk Packet here - clear it first`).
+In **05_TestPhysics**: the fridge starts with 6 **expired** milk across three slots. `R` on each slot clears it
+as waste (₹52 a slot); fresh milk goes into the other slots, never onto the expired ones. Try dropping boxes
+in the corner, in the doorway, against the step and on the steep ramp (refused), and pick boxes off the stack.
 
 ## Tests
 
 *Window ▸ General ▸ Test Runner*.
 
-- **EditMode** (`Tests/EditMode`): stocking rules (capacity, fixture kinds, locked fixtures, expiry, emptying,
-  oldest-expiry merging, a randomised conservation test that units are never created or lost) and the
-  catalogue (36 products, 7 licences, prices, store levels; imported assets match the JSON).
-  The imported-asset tests are skipped until step 4 above has been run.
-- **PlayMode** (`Tests/PlayMode`): the demo loop with real GameObjects: pick up, stock, partial stock,
-  wrong fixture, drop and land on the floor, no second box, empty back into a box, can't empty while carrying,
-  expired stock to waste, a disabled player drops their box.
+- **EditMode** (`Tests/EditMode`): slot layouts and capacities, one-unit stocking and slot choice, box states
+  and allowed moves, take-back, emptying (good stock to a box, expired to waste), freshness merging, shoppers
+  never taking expired stock, unit conservation, and the catalogue (36 products, 7 categories, barcodes, store
+  levels; imported assets match the JSON, skipped until step 7 has been run).
+- **PlayMode** (`Tests/PlayMode`): the loop with real GameObjects: open before stocking, one unit per press into
+  the aimed slot, empty box stays in hand until binned, wrong slot or fixture refused, take one back, empty a
+  slot, clear expired stock, storage rack, drop settles to kinematic, no room by walls, a leaving player drops
+  their box.
 
-## Layout
+## Layout (blueprint §17.4)
 
 ```
 Assets/_Project/
   Scripts/
-    Simulation/        MiniMart.Simulation: pure C# rules (no UnityEngine). Inventory/StockRules, Catalogue/...
-    Data/              ProductDefinition, FixtureDefinition, ProductCatalogue, Licence/StoreLevel/Upgrade definitions
-    Player/            PlayerController (CharacterController), PlayerInputReader (Input System), PlayerRigBuilder
-    Interaction/       IInteractable, InteractionController (camera spherecast), CarryController, InteractableHighlight
-    World/             ProductBox, ShelfFixture, FixtureStockView, DeliveryPad, WasteBin, grey-box builders
-    Core/              GameBootstrap, GameMessages (toasts), SessionStats, SceneNames
-    UI/                HudOverlay and MainMenuController (IMGUI placeholders)
-    Editor/            Catalogue importer, Sprint 1 scene builder
-    Networking/ Persistence/ Platform/ Audio/   empty, for later phases
-  ScriptableObjects/_Source/prototype-catalogue.json   data extracted from the prototype's game.js
-  Tests/EditMode, Tests/PlayMode
-Docs/  BehaviourSpec.md, CodingConventions.md
+    Simulation/   MiniMart.Simulation: pure C# rules (no UnityEngine). Inventory/StockRules, BoxContents, FixtureStock
+    Core/         GameBootstrap, SceneNames, SceneLoader, GameLayers, GameMessages, SessionStats
+    Player/       PlayerController, PlayerInputReader, PlayerRigBuilder
+    Interaction/  IInteractable, PlayerInteractionController, InteractableHighlight
+    Physics/      CarryController, DropPlacement   (namespace MiniMart.Handling, see CodingConventions)
+    Inventory/    ProductBoxController, StorageSlot, StorageRackBuilder, DeliveryPad, WasteBin, ProductBoxFactory
+    Products/     ProductDefinition, ProductCategoryDefinition, ProductCatalogue, ProductView
+    Fixtures/     FixtureDefinition, ShelfFixture, ShelfSlot, FixtureBuilder
+    Progression/  StoreLevelDefinition, UpgradeDefinition
+    UI/           HUD, main menu, lobby, loading screen (IMGUI placeholders)
+    World/        ProtoBuilder (grey-box helpers)
+    Editor/       ProjectSetup, CatalogueImporter, SceneBuilder
+    Checkout/ Customers/ Employees/ Economy/ Incidents/ Networking/ Audio/ Persistence/ Platform/   for later
+  Settings/Resources/Input/MiniMartControls.inputactions
+  ScriptableObjects/  Products, Categories, Fixtures, StoreLevels, Upgrades, … and _Source/prototype-catalogue.json
+  Art/ Audio/ Prefabs/ Scenes/
+  Tests/EditMode, Tests/PlayMode, Tests/Multiplayer
+Docs/  MiniMart_Blueprint.md, WebAndLAN.md, BehaviourSpec.md, CodingConventions.md, the MVP plan
+prototype/  the original Node/Three.js prototype, untouched
 ```
 
-Rules live in `MiniMart.Simulation` so the future multiplayer host can run them authoritatively and tests
-can cover them without a scene. MonoBehaviours call into it; they never decide stock changes themselves.
+Rules live in `MiniMart.Simulation` so the server can run them authoritatively and tests can cover them
+without a scene. MonoBehaviours call into it; they never decide stock changes themselves.
 
 ## First open: what might need fixing
 
-This was written and syntax-checked without a Unity Editor or C# compiler, so it has not been compiled.
-Likely spots if something breaks:
-
-- **Input System not active** → errors in `PlayerInputReader`. Fix with step 3.
-- **Package versions**: `Rigidbody.linearVelocity` is Unity 6 API (guarded by `UNITY_6000_0_OR_NEWER`).
-- **Pink materials** → the project isn't on URP. The scene builder looks for `Universal Render Pipeline/Lit` and
-  falls back to `Standard`.
-- **Text on fixtures/boxes is mirrored** → flip the label's Y rotation in `FixtureBuilder` / `ProductBox.BuildPrimitive`.
+- **Input System not active** → errors in `PlayerInputReader`. Fix with step 4.
+- **`MiniMartControls` not found** → the `.inputactions` file must stay under a `Resources` folder.
+- **URP types missing in `ProjectSetup`** → the project isn't on URP; recreate it from the Universal 3D template.
+- **Layer warnings** → run step 6. Missing layers fall back to Default, so the game still runs.
+- **Text on fixtures, boxes or the rack is mirrored** → flip the label's Y rotation in the builder that made it.
 
 ## Not in Sprint 1 (by design)
 
-Supplier ordering and delivery timer, customers, checkout and payment, economy and day cycle, saving,
-multiplayer, real art and audio. See the plan's Phase 2 onwards and `Docs/BehaviourSpec.md` for the rules
-they will follow.
+Supplier ordering and the delivery timer, customers, checkout and payment, economy and day cycle, saving,
+multiplayer, real art and audio. Next is the blueprint's **Target A**: one customer walking a NavMesh, a checkout
+lane with scanning, cash payment and a receipt, and basic sound.

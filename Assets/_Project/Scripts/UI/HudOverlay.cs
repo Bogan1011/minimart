@@ -14,13 +14,13 @@ namespace MiniMart.UI
     {
         [SerializeField] private float toastSeconds = 4f;
 
-        private InteractionController interaction;
+        private PlayerInteractionController interaction;
         private PlayerInputReader input;
         private GUIStyle prompt, promptOff, small, toast, big;
 
         private void Awake()
         {
-            interaction = GetComponent<InteractionController>();
+            interaction = GetComponent<PlayerInteractionController>();
             input = GetComponent<PlayerInputReader>();
         }
 
@@ -61,7 +61,9 @@ namespace MiniMart.UI
 
             // carried box
             string carried = interaction.Carry.Describe();
-            Shadowed(new Rect(20, h - 70, 600, 26), carried != null ? $"Carrying: <b>{carried}</b>   <b>[Q]</b> drop" : "Hands free", small);
+            string hint = !interaction.Carry.IsCarrying ? "" :
+                interaction.Carry.Carried.Contents.IsOpen ? "   <b>[Q]</b> put down" : "   <b>[F]</b> open   <b>[Q]</b> put down";
+            Shadowed(new Rect(20, h - 70, 800, 26), carried != null ? $"Carrying: <b>{carried}</b>{hint}" : "Hands free", small);
             Shadowed(new Rect(20, h - 44, 600, 26), $"Stocked this session: {SessionStats.UnitsStocked}   Waste: ₹{SessionStats.WasteValue}", small);
 
             // toasts, newest at the bottom
@@ -76,8 +78,8 @@ namespace MiniMart.UI
             }
 
             // controls
-            Shadowed(new Rect(20, 16, 420, 120),
-                "WASD move · Shift sprint · Mouse look\nE / left-click use · Q / right-click drop\nR empty a fixture · Esc free the mouse", small);
+            Shadowed(new Rect(20, 16, 460, 140),
+                "WASD move · Shift sprint · Mouse look\nE / left-click use (hold to keep stocking)\nF open box · Q / right-click put down\nR take one back / empty a slot · Esc free the mouse", small);
 
             if (input != null && !input.HasFocus)
             {

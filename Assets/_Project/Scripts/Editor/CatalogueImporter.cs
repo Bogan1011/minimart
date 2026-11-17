@@ -1,6 +1,8 @@
 using System.Collections.Generic;
 using System.IO;
-using MiniMart.Data;
+using MiniMart.Fixtures;
+using MiniMart.Products;
+using MiniMart.Progression;
 using MiniMart.Simulation.Catalogue;
 using MiniMart.World;
 using UnityEditor;
@@ -42,7 +44,7 @@ namespace MiniMart.EditorTools
                 return null;
             }
 
-            foreach (var folder in new[] { "Products", "Fixtures", "Licences", "Upgrades", "Progression" })
+            foreach (var folder in new[] { "Products", "Categories", "Fixtures", "Upgrades", "StoreLevels" })
                 EnsureFolder($"{Root}/{folder}");
 
             // products
@@ -53,42 +55,47 @@ namespace MiniMart.EditorTools
                 var p = LoadOrCreate<ProductDefinition>($"{Root}/Products/{row.id:00}_{row.key}.asset");
                 p.EditorSet(row.key, row.id, row.name, row.brand, row.size, row.desc ?? "",
                     PrototypeCatalogue.ParseKind(row.kind), row.unitsPerBox, row.shelfLifeDays, row.cost, row.basePrice,
-                    row.licence, ProtoBuilder.Hex(row.color, Color.white), ProtoBuilder.Hex(row.color2, Color.white), row.shape);
+                    row.licence, ProtoBuilder.Hex(row.color, Color.white), ProtoBuilder.Hex(row.color2, Color.white), row.shape,
+                    Barcode(row.id), MassFor(row.shape, row.size));
                 EditorUtility.SetDirty(p);
                 products.Add(p);
                 byIndex[row.id] = p;
             }
 
-            // fixtures (base capacities are not in the JSON: they're BASE_CAP in game.js, mirrored in KindRules)
+            // fixtures: slot layouts are not in the JSON. Totals match BASE_CAP in game.js (see KindRules).
             var fixtures = new List<FixtureDefinition>();
             foreach (FixtureKind kind in System.Enum.GetValues(typeof(FixtureKind)))
             {
                 var f = LoadOrCreate<FixtureDefinition>($"{Root}/Fixtures/{kind}.asset");
                 string display = KindRules.DisplayName(kind);
-                f.Configure(kind, char.ToUpperInvariant(display[0]) + display.Substring(1), KindRules.PrototypeBaseCapacity(kind));
+                FixtureDefinition.PrototypeShape(kind, out int levels, out int perLevel, out int perSlot);
+                f.Configure(kind, char.ToUpperInvariant(display[0]) + display.Substring(1), levels, perLevel, perSlot);
                 EditorUtility.SetDirty(f);
                 fixtures.Add(f);
             }
 
-            // licences
+            // categories (the prototype's licences)
+            var categories = new List<ProductCategoryDefinition>();
             if (data.licences != null)
                 foreach (var row in data.licences)
                 {
-                    var l = LoadOrCreate<LicenceDefinition>($"{Root}/Licences/{row.key}.asset");
-                    l.key = row.key; l.displayName = row.name; l.storeLevel = row.level; l.cost = row.cost;
-                    l.products = new List<ProductDefinition>();
-                    foreach (int id in row.productIds) if (byIndex.TryGetValue(id, out var p)) l.products.Add(p);
-                    EditorUtility.SetDirty(l);
+                    var c = LoadOrCreate<ProductCategoryDefinition>($"{Root}/Categories/{row.key}.asset");
+                    c.key = row.key; c.displayName = row.name; c.storeLevel = row.level; c.licenceCost = row.cost;
+                    c.products = new List<ProductDefinition>();
+                    foreach (int id in row.productIds) if (byIndex.TryGetValue(id, out var p)) c.products.Add(p);
+                    EditorUtility.SetDirty(c);
+                    categories.Add(c);
                 }
 
             // store levels
             if (data.storeLevels != null)
                 foreach (var row in data.storeLevels)
                 {
-                    var s = LoadOrCreate<StoreLevelDefinition>($"{Root}/Progression/Level{row.level}_{row.name.Replace(" ", "")}.asset");
+                    var s = LoadOrCreate<StoreLevelDefinition>($"{Root}/StoreLevels/Level{row.level}_{row.name.Replace(" ", "")}.asset");
                     s.level = row.level; s.displayName = row.name; s.cost = row.cost; s.servedRequired = row.served;
                     s.reputationRequired = row.rep; s.rentPerDay = row.rent; s.dailyCustomerCap = row.cap; s.crowdCap = row.crowd;
                     s.description = row.desc;
+                    s.availableCategories = categories.FindAll(c => c.storeLevel == row.level);
                     EditorUtility.SetDirty(s);
                 }
 
@@ -103,15 +110,37 @@ namespace MiniMart.EditorTools
                 }
 
             var catalogue = LoadOrCreate<ProductCatalogue>(CataloguePath);
-            catalogue.SetContents(products, fixtures);
+            catalogue.SetContents(products, categories, fixtures);
             EditorUtility.SetDirty(catalogue);
             AssetDatabase.SaveAssets();
 
             var problems = CatalogueValidator.Validate(products);
             foreach (var problem in problems) Debug.LogWarning($"Catalogue: {problem}");
             Debug.Log($"MiniMart: imported {products.Count} products, {fixtures.Count} fixtures, " +
-                      $"{data.licences?.Length ?? 0} licences, {data.storeLevels?.Length ?? 0} store levels, {data.upgrades?.Length ?? 0} upgrades.");
+                      $"{categories.Count} categories, {data.storeLevels?.Length ?? 0} store levels, {data.upgrades?.Length ?? 0} upgrades.");
             return catalogue;
+        }
+
+        /// <summary>
+        /// Placeholder EAN-13 barcode: 890 (India) + 000 + 6-digit index + check digit. Real barcodes
+        /// replace these when products get final names.
+        /// </summary>
+        public static string Barcode(int index)
+        {
+            string body = $"890000{index:000000}";
+            int sum = 0;
+            for (int i = 0; i < 12; i++) sum += (body[i] - '0') * (i % 2 == 0 ? 1 : 3);
+            return body + ((10 - sum % 10) % 10);
+        }
+
+        /// <summary>Rough carry weight from pack shape and size. Only affects feel (blueprint §5.4).</summary>
+        public static PackageMass MassFor(string shape, string size)
+        {
+            string s = (size ?? "").ToLowerInvariant();
+            if (shape == "sack" || shape == "oil" || s.Contains("5 kg") || s.Contains("5kg")) return PackageMass.Heavy;
+            if (s.Contains("kg") || s.EndsWith(" l") || s.Contains("1 l") || shape == "bottle" || shape == "tub" || shape == "icetub")
+                return PackageMass.Medium;
+            return PackageMass.Light;
         }
 
         public static ProductCatalogue LoadCatalogue() => AssetDatabase.LoadAssetAtPath<ProductCatalogue>(CataloguePath);

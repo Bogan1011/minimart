@@ -1,3 +1,5 @@
+using MiniMart.Core;
+using MiniMart.Handling;
 using MiniMart.Interaction;
 using MiniMart.UI;
 using UnityEngine;
@@ -12,7 +14,7 @@ namespace MiniMart.Player
     public static class PlayerRigBuilder
     {
         public const float Height = 1.8f;
-        public const float Radius = 0.33f;   // prototype PLAYER_R is 0.33 tiles; 0.33 m feels right in first person
+        public const float Radius = 0.33f;
         public const float EyeHeight = 1.65f;
 
         public static GameObject Build(Vector3 position, bool withHud = true, bool withCamera = true)
@@ -45,23 +47,25 @@ namespace MiniMart.Player
                 cam = pivot.gameObject.AddComponent<Camera>();
                 cam.nearClipPlane = 0.05f;
                 cam.fieldOfView = 75f;
+                cam.allowMSAA = false;   // iGPU budget: MSAA off (see Docs/WebAndLAN.md)
                 pivot.gameObject.AddComponent<AudioListener>();
                 pivot.gameObject.tag = "MainCamera";
             }
 
             var hold = new GameObject("HoldPoint").transform;
             hold.SetParent(pivot, false);
-            hold.localPosition = new Vector3(0f, -0.4f, 0.7f);
+            hold.localPosition = new Vector3(0f, -0.45f, 0.65f);   // low and close so the box doesn't block the view (§8.4)
 
             root.AddComponent<PlayerInputReader>();
             var pc = root.AddComponent<PlayerController>();
             pc.SetCameraPivot(pivot);
             var carry = root.AddComponent<CarryController>();
             carry.SetHoldPoint(hold);
-            var ic = root.AddComponent<InteractionController>();
+            var ic = root.AddComponent<PlayerInteractionController>();
             if (cam != null) ic.SetCamera(cam);
             if (withHud) root.AddComponent<HudOverlay>();
 
+            GameLayers.Set(root, GameLayers.Player);
             root.SetActive(true);
             return root;
         }
