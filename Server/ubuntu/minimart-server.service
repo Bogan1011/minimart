@@ -1,0 +1,22 @@
+# MiniMart Mayhem Unity server build (Linux Dedicated Server, headless).
+# Installed by setup.sh. Logs: journalctl -u minimart-server -f  and /var/log/minimart/server.log
+[Unit]
+Description=MiniMart Mayhem game server
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=minimart
+Group=minimart
+WorkingDirectory=/opt/minimart/server
+# -port / -saveDir are read by the networking code (Week 4 multiplayer proof of concept).
+ExecStart=/opt/minimart/server/MiniMartServer.x86_64 -batchmode -nographics -logFile /var/log/minimart/server.log -port 7777 -saveDir /var/lib/minimart/saves
+Restart=on-failure
+RestartSec=3
+# keep a busy game from starving the PC: 8 GB box, server should stay under ~2 GB
+MemoryMax=3G
+Nice=-5
+
+[Install]
+WantedBy=multi-user.target

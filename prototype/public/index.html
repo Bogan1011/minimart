@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MiniMart Mayhem</title>
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+
+<canvas id="cv"></canvas>
+
+<!-- ============ join ============ -->
+<div id="joinScreen" class="overlay join-bg">
+  <div class="join">
+    <div class="join-brand">
+      <div class="tagline">Co-op supermarket · LAN · up to 8 clerks</div>
+      <h1>MiniMart<br>Mayhem</h1>
+      <p class="sub">Start with a little corner shop. Order stock, fill the shelves, ring up bills and count out change at the till, chase shoplifters, then knock through the walls level by level into a full superstore.</p>
+    </div>
+    <div class="join-form">
+      <label for="nameInput">Your name on the badge</label>
+      <input id="nameInput" maxlength="12" placeholder="Clerk" autocomplete="off" spellcheck="false">
+      <label for="passInput" class="passlbl">Room password <span class="muted">(only if the host set one)</span></label>
+      <input id="passInput" type="password" maxlength="40" autocomplete="off" placeholder="none">
+      <button id="joinBtn" class="primary">Start shift</button>
+      <div id="joinErr" class="err" role="alert"></div>
+      <dl class="keys">
+        <div><dt>WASD</dt><dd>walk</dd></div><div><dt>Shift</dt><dd>sprint</dd></div>
+        <div><dt>E</dt><dd>interact</dd></div><div><dt>Q</dt><dd>drop box</dd></div>
+        <div><dt>R</dt><dd>empty shelf</dd></div><div><dt>Space</dt><dd>scan</dd></div>
+        <div><dt>O / P / U</dt><dd>order · prices · upgrades</dd></div><div><dt>T</dt><dd>chat</dd></div>
+        <div><dt>Tab</dt><dd>crew board</dd></div><div><dt>H</dt><dd>help</dd></div>
+      </dl>
+    </div>
+  </div>
+</div>
+
+<!-- ============ loading / reconnecting ============ -->
+<div id="loadScreen" class="overlay join-bg hidden">
+  <div class="loadbox">
+    <div class="tagline">MiniMart Mayhem</div>
+    <div id="loadStep" class="loadstep">Connecting…</div>
+    <div class="loadbar"><i id="loadBar"></i></div>
+  </div>
+</div>
+
+<!-- ============ in-game HUD ============ -->
+<div id="game" class="hidden">
+  <header id="hud">
+    <div class="hud-group">
+      <button id="hLevel" class="lvlbadge" title="Store level - click to grow the store"><span class="lv">Lv <b id="hLvl">1</b></span><span class="nm" id="hLvlName">Corner Shop</span><span class="lvbar"><i id="hLvlBar"></i></span></button>
+      <div class="stat"><span class="k">Day</span><span id="hDay" class="v">1</span></div>
+      <div class="stat"><span class="k">Clock</span><span id="hClock" class="v">07:30</span></div>
+      <div class="stat"><span class="k">Status</span><span id="hPhase" class="v pill">Prep</span></div>
+      <div class="stat"><span class="k">Weather</span><span id="hWx" class="v small">Clear</span></div>
+    </div>
+    <div class="hud-group">
+      <div class="stat cash"><span class="k">Cash</span><span id="hCash" class="v">₹0</span></div>
+      <div class="stat"><span class="k">Reputation</span><span class="v"><span id="hRepBar" class="repbar"><i></i></span><span id="hRep">50</span></span></div>
+      <div class="stat"><span class="k">Loyalty club</span><span id="hLoyal" class="v">0</span></div>
+      <div class="stat"><span class="k">Crew</span><span id="hCrew" class="v">1</span></div>
+    </div>
+    <div class="hud-group right">
+      <span id="hDeliv" class="deliv"></span>
+      <button id="btnOrder" class="chip">Order <kbd>O</kbd></button>
+      <button id="btnPrice" class="chip">Prices <kbd>P</kbd></button>
+      <button id="btnUp" class="chip">Upgrades <kbd>U</kbd></button>
+      <button id="btnSet" class="chip icon" aria-label="Settings">⚙</button>
+    </div>
+  </header>
+
+  <div id="crosshair"></div>
+  <div id="toasts" aria-live="polite"></div>
+  <div id="carry" class="carry hidden"></div>
+  <div id="prompt" class="tag hidden"></div>
+  <div id="clickHint" class="clickHint">Click to look around · <kbd>Esc</kbd> frees the mouse</div>
+  <div id="openBanner" class="banner hidden"></div>
+
+  <div id="goals" class="goals"></div>
+
+  <!-- live bill on the till you are working -->
+  <div id="pos" class="pos hidden" aria-live="polite">
+    <div class="pos-head"><span id="posTill">Till 1</span><span id="posBill" class="muted"></span></div>
+    <div id="posLines" class="pos-lines"></div>
+    <div class="pos-tot"><span>Total</span><b id="posTotal">₹0</b></div>
+    <div id="posState" class="pos-state"></div>
+  </div>
+
+  <!-- printed receipt after each sale -->
+  <div id="receipt" class="receipt-slip hidden"></div>
+
+  <!-- level-up fanfare -->
+  <div id="levelUp" class="levelup hidden"><div class="lu-k">Store expanded</div><div class="lu-n" id="levelUpName"></div><div class="lu-d" id="levelUpDesc"></div></div>
+
+  <div id="touch" class="touch hidden">
+    <div id="stick" class="stick"><i id="stickKnob"></i></div>
+    <div id="lookPad" class="lookpad"></div>
+    <div class="tbtns">
+      <button data-t="act" class="tb big">Use</button>
+      <button data-t="scan" class="tb big">Scan</button>
+      <button data-t="drop" class="tb">Drop</button>
+      <button data-t="pull" class="tb">Empty</button>
+      <button data-t="sprint" class="tb">Run</button>
+      <button data-t="ready" class="tb">Open</button>
+    </div>
+    <div class="tmenu">
+      <button data-t="order" class="tb sm">Order</button>
+      <button data-t="price" class="tb sm">Prices</button>
+      <button data-t="up" class="tb sm">Grow</button>
+      <button data-t="chat" class="tb sm">Chat</button>
+      <button data-t="board" class="tb sm">Crew</button>
+    </div>
+  </div>
+
+  <div id="mapWrap"><canvas id="minimap" width="240" height="190"></canvas></div>
+  <div id="chatLog"></div>
+  <div id="chatBox" class="hidden"><input id="chatInput" maxlength="140" placeholder="Say something to the crew…" autocomplete="off"></div>
+
+  <div id="board" class="hidden">
+    <h3>Crew today</h3>
+    <table id="boardTable"></table>
+  </div>
+</div>
+
+<!-- ============ panels ============ -->
+<div id="orderPanel" class="overlay hidden">
+  <div class="card wide">
+    <div class="card-head"><h2>Supplier</h2><div id="orderCash" class="muted"></div></div>
+    <p class="sub">Boxes land on the yellow delivery pad in storage. Each product only fits its own fixture: dry goods on shelves, chilled in fridges, frozen in freezers, fruit and veg in produce crates.</p>
+    <div class="tabs" id="orderTabs"></div>
+    <div class="tablewrap"><table id="orderTable"></table></div>
+    <div class="row"><span class="muted">Tip: <kbd>Shift</kbd>+click Order buys 5 boxes.</span><button class="close">Close <kbd>Esc</kbd></button></div>
+  </div>
+</div>
+
+<div id="pricePanel" class="overlay hidden">
+  <div class="card wide">
+    <div class="card-head"><h2>Price list</h2><div class="btns"><button id="priceReset" class="chip">All to expected</button><button id="priceUp" class="chip">All +10%</button></div></div>
+    <p class="sub">Above what shoppers expect and they put it back. Below it and they buy two or three, but you earn less. Tick up to 3 promotions: promoted items priced at or below the expected price are wanted three times as often.</p>
+    <div class="tablewrap"><table id="priceTable"></table></div>
+    <div class="row"><span class="muted">Changes reach every shelf tag instantly.</span><button class="close">Close <kbd>Esc</kbd></button></div>
+  </div>
+</div>
+
+<div id="upPanel" class="overlay hidden">
+  <div class="card wide">
+    <div class="card-head"><h2>Grow the store</h2><div id="upCash" class="muted"></div></div>
+    <p class="sub">Everything here is permanent and shared by the whole crew. Each store level knocks down a hoarding wall and opens a new part of the shop.</p>
+    <h3 class="sect">Store level</h3>
+    <div id="lvlTrack" class="lvltrack"></div>
+    <h3 class="sect">Product licences <span class="muted">· a licence lets you order and sell a product line</span></h3>
+    <div id="licGrid" class="upgrid"></div>
+    <h3 class="sect">Equipment &amp; staff <span class="muted">· wages come out at closing time</span></h3>
+    <div id="upGrid" class="upgrid"></div>
+    <div class="row"><span class="muted">Progress saves automatically at the end of each day.</span><button class="close">Close <kbd>Esc</kbd></button></div>
+  </div>
+</div>
+
+<div id="drawerPanel" class="overlay drawer-ov hidden">
+  <div class="card drawer">
+    <div class="drawer-top">
+      <div><span class="k">Bill</span><b id="drBill">₹0</b></div>
+      <div><span class="k">Cash received</span><b id="drTd">₹0</b></div>
+      <div class="due"><span class="k">Change to give</span><b id="drDue">₹0</b></div>
+    </div>
+    <div id="drSay" class="drawer-say"></div>
+    <div class="tray-wrap">
+      <div class="k">Change in your hand · <b id="drGive">₹0</b></div>
+      <div id="drTray" class="tray"></div>
+    </div>
+    <div id="drNotes" class="notes"></div>
+    <div class="row">
+      <span class="muted">Click notes and coins, or keys <kbd>1</kbd>–<kbd>9</kbd> · <kbd>Backspace</kbd> takes one back</span>
+      <span class="btns"><button id="drClear" class="chip">Clear</button><button id="drGiveBtn" class="primary">Give change <kbd>Enter</kbd></button></span>
+    </div>
+  </div>
+</div>
+
+<div id="setPanel" class="overlay hidden">
+  <div class="card">
+    <h2>Settings</h2>
+    <label class="field">Mouse sensitivity <input type="range" id="setSens" min="0.3" max="2.5" step="0.05"></label>
+    <label class="field">Sound effects <input type="range" id="setVol" min="0" max="1" step="0.05"></label>
+    <label class="field">In-store music <input type="range" id="setMus" min="0" max="1" step="0.05"></label>
+    <label class="field">Graphics
+      <select id="setQ"><option value="low">Low - older laptops</option><option value="medium">Medium</option><option value="high">High - shadows</option></select>
+    </label>
+    <label class="field">Field of view <span class="fovrow"><input type="range" id="setFov" min="60" max="95" step="1"><span id="setFovV" class="muted">72°</span></span></label>
+    <label class="field check"><input type="checkbox" id="setBob"> Head bob while walking</label>
+    <label class="field check"><input type="checkbox" id="setInv"> Invert mouse Y</label>
+    <label class="field check"><input type="checkbox" id="setAuto"> Lower resolution automatically when the game stutters</label>
+    <p class="muted" id="setNote"></p>
+    <div class="hostbox">
+      <h4>Save slots <span id="hostBadge" class="muted"></span></h4>
+      <div id="slotList" class="slots"></div>
+      <div class="row"><button id="saveNow" class="chip">Save now</button><span id="slotMsg" class="muted"></span></div>
+    </div>
+    <div class="row"><span></span><button class="close">Done <kbd>Esc</kbd></button></div>
+  </div>
+</div>
+
+<div id="helpPanel" class="overlay hidden">
+  <div class="card wide">
+    <h2>How the shop works</h2>
+    <div class="helpgrid">
+      <div><h4>Prep</h4><p>No clock is running. Order stock at the terminal in storage or press <kbd>O</kbd> anywhere. Carry boxes to fixtures and press <kbd>E</kbd>. When you are ready press <kbd>Enter</kbd> to open the doors.</p></div>
+      <div><h4>The till</h4><p>Stand on the mat behind a till. Tap <kbd>Space</kbd> to scan each item, then once more to ask for payment. Card and UPI approve on their own. For cash, the drawer opens: count out the change with notes and coins and press <kbd>Enter</kbd>. Short-changing annoys shoppers; giving too much costs you.</p></div>
+      <div><h4>Trouble</h4><p>A red THIEF tag means run them down and press <kbd>E</kbd> - the goods drop as boxes. Spills get a yellow sign: walk up and press <kbd>E</kbd> three times. Both cost reputation if ignored.</p></div>
+      <div><h4>Shelves</h4><p>The first product stocked claims a fixture. Look at a stocked fixture empty-handed and press <kbd>R</kbd> to take everything back into a box so you can reuse it.</p></div>
+      <div><h4>Growing</h4><p>You start as a small corner shop. Serve shoppers and build reputation, then expand (<kbd>U</kbd>): Mini Market, Supermarket, Superstore. Each level opens new aisles and tills. Buy product licences to sell more lines, and hire staff to work on their own.</p></div>
+      <div><h4>Weather</h4><p>Rain means fewer shoppers and more spills. Festivals bring crowds. Heatwaves empty the fridges and freezers.</p></div>
+    </div>
+    <div class="row"><span class="muted">Hold <kbd>Tab</kbd> for the crew board · <kbd>M</kbd> resizes the map</span><button class="close">Close <kbd>Esc</kbd></button></div>
+  </div>
+</div>
+
+<div id="summaryPanel" class="overlay hidden">
+  <div class="card receipt">
+    <div class="receipt-head">
+      <div class="muted" id="sumWx"></div>
+      <h2 id="sumTitle">Day 1 closed</h2>
+      <div id="sumProfit" class="big"></div>
+    </div>
+    <table id="sumTable"></table>
+    <h4 class="crewh">Today's goals</h4>
+    <table id="sumGoals" class="crew"></table>
+    <h4 class="crewh">Crew</h4>
+    <table id="sumCrew" class="crew"></table>
+    <button id="sumBtn" class="primary">Continue to day prep <kbd>Enter</kbd></button>
+  </div>
+</div>
+
+<script type="importmap">
+{ "imports": { "three": "/vendor/three.module.js" } }
+</script>
+<script type="module" src="/client.js"></script>
+</body>
+</html>
