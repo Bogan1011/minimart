@@ -1,0 +1,2 @@
+# Original browser prototype, kept untouched as the design reference (plan Phase 0).
+*.png !filter !diff !merge binary

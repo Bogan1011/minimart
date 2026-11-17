@@ -1,0 +1,19 @@
+{
+    "name": "MiniMart.Editor",
+    "rootNamespace": "MiniMart.EditorTools",
+    "references": [
+        "MiniMart.Simulation",
+        "MiniMart.Runtime"
+    ],
+    "includePlatforms": [
+        "Editor"
+    ],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}
